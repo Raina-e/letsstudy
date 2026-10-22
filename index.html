@@ -135,10 +135,13 @@ select{font:inherit;font-size:14px;padding:7px 10px;border-radius:10px;border:1p
       <input type="range" id="vol" min="5" max="100" step="5" value="70"></div>
     <div class="row"><label for="earOnly">이어폰에서만 소리 내기<small id="earStatus">꺼져 있어요</small></label>
       <label class="switch"><input type="checkbox" id="earOnly"><span></span></label></div>
+    <div class="row" id="earRow" hidden><label for="earCheck">이어폰 다시 확인<small id="earDevices">이어폰을 연결한 뒤 눌러 주세요</small></label>
+      <button id="earCheck">확인</button></div>
     <div class="row"><label for="testBtn">소리 미리 듣기<small>볼륨 맞추기</small></label><button id="testBtn">테스트</button></div>
   </section>
 
   <ul class="tips">
+    <li>이어폰에서만 소리 내기가 이어폰을 못 찾으면 '이어폰 다시 확인'을 눌러 마이크를 허용해 주세요. 녹음은 하지 않고 기기 이름만 확인한 뒤 바로 꺼요.</li>
     <li>이어폰에서만 소리 내기를 켜면, 이어폰이 확인되지 않을 때는 소리 없이 진동과 화면 깜빡임으로만 깨워요.</li>
     <li>화면을 켜 둔 채 이 페이지를 열어 두세요. 잠그거나 다른 앱으로 넘어가면 멈춰요.</li>
     <li>알람은 같은 숫자 버튼을 눌러야 꺼져요.</li>
@@ -185,13 +188,24 @@ async function checkEar(){
   try{const list=await navigator.mediaDevices.enumerateDevices();
     const outs=list.filter(d=>d.kind==='audiooutput'||d.kind==='audioinput');
     earKnown=outs.some(d=>d.label);earConnected=outs.some(d=>EAR_RE.test(d.label));
+    earNames=[...new Set(outs.map(d=>d.label).filter(Boolean))];
   }catch(e){earKnown=false;earConnected=false}
   renderEar();
 }
+let earNames=[];
 function renderEar(){
+  $('earRow').hidden=!$('earOnly').checked;
+  if(earNames.length)$('earDevices').textContent='찾은 기기: '+earNames.join(', ');
   if(!$('earOnly').checked){$('earStatus').textContent='꺼져 있어요';return}
   $('earStatus').textContent=earConnected?'이어폰 연결됨 · 소리 켜짐':earKnown?'이어폰 없음 · 진동과 화면만':'이어폰 확인 안 됨 · 진동과 화면만';
 }
+// iPhone shows audio device names only after microphone permission, so ask once and release the mic right away
+$('earCheck').addEventListener('click',async()=>{
+  $('earDevices').textContent='확인 중…';
+  try{const st=await navigator.mediaDevices.getUserMedia({audio:true});st.getTracks().forEach(t=>t.stop())}
+  catch(e){await checkEar();$('earDevices').textContent='마이크를 허용해야 이어폰 이름을 볼 수 있어요';return}
+  await checkEar();if(!earNames.length)$('earDevices').textContent='브라우저가 기기 이름을 알려 주지 않았어요';
+});
 function soundAllowed(){return !$('earOnly').checked||earConnected}
 if(navigator.mediaDevices&&navigator.mediaDevices.addEventListener)navigator.mediaDevices.addEventListener('devicechange',async()=>{await checkEar();if(alarmNode&&!soundAllowed())silence()});
 $('earOnly').addEventListener('change',()=>{store.set('jolum_earOnly',$('earOnly').checked);checkEar();if(alarmNode&&!soundAllowed())silence()});
