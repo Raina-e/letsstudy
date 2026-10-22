@@ -45,9 +45,11 @@ button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid 
 .row{display:flex;justify-content:space-between;align-items:center;gap:12px;padding-top:10px;border-top:1px solid var(--line)}
 .row label{min-width:0;font-size:14px}
 .row small{display:block;color:var(--muted);font-size:12px}
+input[type=range]{width:140px;max-width:45%;accent-color:var(--lamp)}
 select{font:inherit;font-size:14px;padding:7px 10px;border-radius:10px;border:1px solid var(--line);background:var(--raise);color:var(--fg)}
 .cam{display:flex;gap:12px;align-items:center}
 .cam-box{position:relative;width:96px;aspect-ratio:3/4;max-width:100%;border-radius:12px;overflow:hidden;background:var(--raise);border:1px solid var(--line);flex:none}
+.cam-box.gone{position:absolute;width:2px;height:2px;opacity:0;pointer-events:none;border:0}
 .cam-box video{width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
 .cam-box.closed{border-color:var(--alert);box-shadow:0 0 0 2px var(--alert)}
 .cam-info{min-width:0;display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--muted)}
@@ -78,7 +80,7 @@ select{font:inherit;font-size:14px;padding:7px 10px;border-radius:10px;border:1p
 <div class="wrap">
   <header>
     <h1>독서실 졸음 깨우미</h1>
-    <p class="sub">눈이 감기거나 확인에 응답이 없으면 이어폰으로 알람이 울려요.</p>
+    <p class="sub">눈이 감기거나 확인에 응답이 없으면 알람이 울려요.</p>
   </header>
 
   <section class="dial" id="dial" aria-live="polite">
@@ -110,7 +112,9 @@ select{font:inherit;font-size:14px;padding:7px 10px;border-radius:10px;border:1p
     </div>
     <p class="note" id="camNote">폰을 세워서 얼굴이 화면에 들어오게 두세요. 영상은 기기 밖으로 나가지 않아요.</p>
     <div class="row"><label for="closeSec">감고 있으면 알람<small>짧을수록 민감해요</small></label>
-      <select id="closeSec"><option value="1.5">1.5초</option><option value="2.5" selected>2.5초</option><option value="4">4초</option></select></div>
+      <select id="closeSec"><option value="1.5">1.5초</option><option value="2.5" selected>2.5초</option><option value="4">4초</option><option value="10">10초</option></select></div>
+    <div class="row"><label for="showPreview">카메라 화면 보이기<small>꺼도 감지는 계속돼요</small></label>
+      <label class="switch"><input type="checkbox" id="showPreview" checked><span></span></label></div>
   </section>
 
   <section class="mode">
@@ -125,12 +129,17 @@ select{font:inherit;font-size:14px;padding:7px 10px;border-radius:10px;border:1p
   </section>
 
   <section class="mode">
-    <div class="row" style="border-top:0;padding-top:0"><label for="sound">알람 소리<small>독서실에선 이어폰 필수</small></label>
+    <div class="row" style="border-top:0;padding-top:0"><label for="sound">알람 소리<small>사이렌이 더 강해요</small></label>
       <select id="sound"><option value="beep" selected>삐삐 비프음</option><option value="siren">사이렌</option></select></div>
+    <div class="row"><label for="vol">소리 크기<small id="volVal">70%</small></label>
+      <input type="range" id="vol" min="5" max="100" step="5" value="70"></div>
+    <div class="row"><label for="earOnly">이어폰에서만 소리 내기<small id="earStatus">꺼져 있어요</small></label>
+      <label class="switch"><input type="checkbox" id="earOnly"><span></span></label></div>
     <div class="row"><label for="testBtn">소리 미리 듣기<small>볼륨 맞추기</small></label><button id="testBtn">테스트</button></div>
   </section>
 
   <ul class="tips">
+    <li>이어폰에서만 소리 내기를 켜면, 이어폰이 확인되지 않을 때는 소리 없이 진동과 화면 깜빡임으로만 깨워요.</li>
     <li>화면을 켜 둔 채 이 페이지를 열어 두세요. 잠그거나 다른 앱으로 넘어가면 멈춰요.</li>
     <li>알람은 같은 숫자 버튼을 눌러야 꺼져요.</li>
     <li>안드로이드는 진동도 같이 와요. 아이폰은 브라우저 진동을 지원하지 않아요.</li>
@@ -165,18 +174,43 @@ function renderStats(){$('sOk').textContent=stats.ok;$('sEye').textContent=stats
 renderStats();
 
 /* ---------- sound ---------- */
-function audio(){if(!ctx)ctx=new (window.AudioContext||window.webkitAudioContext)();if(ctx.state==='suspended')ctx.resume();return ctx}
-function chime(){const c=audio(),t=c.currentTime;[880,1320].forEach((f,i)=>{const o=c.createOscillator(),g=c.createGain();
+let master=null,earConnected=false,earKnown=false;
+function audio(){if(!ctx){ctx=new (window.AudioContext||window.webkitAudioContext)();master=ctx.createGain();master.connect(ctx.destination);applyVol()}
+  if(ctx.state==='suspended')ctx.resume();return ctx}
+function applyVol(){const v=Number($('vol').value);$('volVal').textContent=v+'%';if(master)master.gain.value=Math.pow(v/100,1.5)*2}
+$('vol').addEventListener('input',()=>{applyVol();store.set('jolum_vol',$('vol').value)});
+{const v=store.get('jolum_vol',null);if(v)$('vol').value=v;applyVol()}
+const EAR_RE=/head(phone|set)|earphone|earbud|buds|airpods|bluetooth|usb|wired|이어폰|헤드폰|헤드셋/i;
+async function checkEar(){
+  try{const list=await navigator.mediaDevices.enumerateDevices();
+    const outs=list.filter(d=>d.kind==='audiooutput'||d.kind==='audioinput');
+    earKnown=outs.some(d=>d.label);earConnected=outs.some(d=>EAR_RE.test(d.label));
+  }catch(e){earKnown=false;earConnected=false}
+  renderEar();
+}
+function renderEar(){
+  if(!$('earOnly').checked){$('earStatus').textContent='꺼져 있어요';return}
+  $('earStatus').textContent=earConnected?'이어폰 연결됨 · 소리 켜짐':earKnown?'이어폰 없음 · 진동과 화면만':'이어폰 확인 안 됨 · 진동과 화면만';
+}
+function soundAllowed(){return !$('earOnly').checked||earConnected}
+if(navigator.mediaDevices&&navigator.mediaDevices.addEventListener)navigator.mediaDevices.addEventListener('devicechange',async()=>{await checkEar();if(alarmNode&&!soundAllowed())silence()});
+$('earOnly').addEventListener('change',()=>{store.set('jolum_earOnly',$('earOnly').checked);checkEar();if(alarmNode&&!soundAllowed())silence()});
+if(store.get('jolum_earOnly',false))$('earOnly').checked=true;
+checkEar();
+function silence(){if(alarmNode){try{alarmNode.o.stop();alarmNode.lfo.stop()}catch(e){}alarmNode=null}}
+function chime(){if(!soundAllowed())return;const c=audio(),t=c.currentTime;[880,1320].forEach((f,i)=>{const o=c.createOscillator(),g=c.createGain();
   o.frequency.value=f;g.gain.setValueAtTime(0,t+i*.18);g.gain.linearRampToValueAtTime(.15,t+i*.18+.02);g.gain.exponentialRampToValueAtTime(.001,t+i*.18+.4);
-  o.connect(g).connect(c.destination);o.start(t+i*.18);o.stop(t+i*.18+.45)})}
-function startAlarm(){stopAlarm();const c=audio(),o=c.createOscillator(),g=c.createGain(),lfo=c.createOscillator(),lg=c.createGain();
+  o.connect(g).connect(master);o.start(t+i*.18);o.stop(t+i*.18+.45)})}
+function startAlarm(){stopAlarm();
+  if(navigator.vibrate){const v=()=>navigator.vibrate([400,200,400]);v();vibTimer=setInterval(v,1200)}
+  if(!soundAllowed())return;
+  const c=audio(),o=c.createOscillator(),g=c.createGain(),lfo=c.createOscillator(),lg=c.createGain();
   const siren=$('sound').value==='siren';
   o.type=siren?'sawtooth':'square';o.frequency.value=siren?700:1000;
   if(siren){lfo.frequency.value=1.5;lg.gain.value=300;lfo.connect(lg).connect(o.frequency)}
   else{lfo.type='square';lfo.frequency.value=4;lg.gain.value=.25;lfo.connect(lg).connect(g.gain)}
-  g.gain.value=siren?.3:.25;o.connect(g).connect(c.destination);o.start();lfo.start();alarmNode={o,lfo};
-  if(navigator.vibrate){const v=()=>navigator.vibrate([400,200,400]);v();vibTimer=setInterval(v,1200)}}
-function stopAlarm(){if(alarmNode){try{alarmNode.o.stop();alarmNode.lfo.stop()}catch(e){}alarmNode=null}
+  g.gain.value=siren?.3:.25;o.connect(g).connect(master);o.start();lfo.start();alarmNode={o,lfo}}
+function stopAlarm(){silence();
   clearInterval(vibTimer);if(navigator.vibrate)navigator.vibrate(0)}
 
 async function lockScreen(){try{if('wakeLock' in navigator)wakeLock=await navigator.wakeLock.request('screen')}catch(e){wakeLock=null}}
@@ -242,7 +276,7 @@ async function startCam(){
     camMsg('이 화면에서는 카메라를 쓸 수 없어요. 함께 보내 드린 파일 버전을 휴대폰 크롬이나 노트북에서 열면 눈 감김 감지가 작동해요.',true);
     return false;
   }
-  $('video').srcObject=stream;await $('video').play().catch(()=>{});
+  $('video').srcObject=stream;checkEar();await $('video').play().catch(()=>{});
   if(!landmarker){
     $('eyeState').textContent='감지 모델 불러오는 중';
     try{
@@ -263,6 +297,9 @@ function stopCam(){camReady=false;cancelAnimationFrame(camLoop);if(stream){strea
   $('camArea').hidden=true;closedSince=0}
 function calibrate(){baseline=0;calib=[];calibUntil=performance.now()+3000;$('camHint').textContent='정면을 보고 눈을 뜬 채로 3초간 기다리세요.'}
 $('recal').addEventListener('click',calibrate);
+function applyPreview(){$('camBox').classList.toggle('gone',!$('showPreview').checked)}
+$('showPreview').addEventListener('change',()=>{store.set('jolum_preview',$('showPreview').checked);applyPreview()});
+if(store.get('jolum_preview',true)===false)$('showPreview').checked=false;applyPreview();
 
 function camFrame(){
   if(!camReady)return;
@@ -315,7 +352,7 @@ $('go').addEventListener('click',async()=>{
     $('go').textContent='공부 시작';$('go').classList.remove('stop');
   }
 });
-$('testBtn').addEventListener('click',()=>{startAlarm();setTimeout(stopAlarm,1500)});
+$('testBtn').addEventListener('click',async()=>{audio();await checkEar();if(!soundAllowed())$('earStatus').textContent='이어폰이 확인되지 않아 소리 없이 진동만 테스트해요';startAlarm();setTimeout(stopAlarm,1500)});
 if($('useCam').checked){$('useCam').checked=false} // camera needs a tap to start
 </script>
 
