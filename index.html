@@ -86,6 +86,35 @@ button.accent{border-color:var(--lamp);color:var(--lamp)}
 .note{font-size:12.5px;color:var(--muted);margin:0}
 .note.warn{color:var(--alert)}
 .tips{font-size:12.5px;color:var(--muted);margin:0;padding-left:18px}
+.secondary{width:100%;padding:12px;font-size:14px;background:transparent}
+#pipNote{margin:-6px 0 0;text-align:center}
+/* mini view: lives inside the floating window */
+#mini{display:flex;flex-direction:column;gap:8px;height:100%;box-sizing:border-box;padding:10px 12px}
+.m-goal{font-family:var(--display);color:var(--lamp);font-size:15px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin:0}
+.m-row{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.m-time{font-family:var(--display);font-size:34px;line-height:1;font-variant-numeric:tabular-nums}
+.m-run .m-time{color:var(--lamp)}
+.m-eye{font-size:12px;color:var(--muted);text-align:right;min-width:0}
+.m-eye.closed{color:var(--alert)}
+.m-vid{position:absolute;width:2px;height:2px;opacity:0;overflow:hidden;pointer-events:none}
+.m-vid video{width:2px;height:2px}
+.m-btn{padding:8px;font-size:13px;margin-top:auto}
+.m-check{display:flex;flex-direction:column;gap:6px;text-align:center;flex:1;justify-content:center}
+.m-check p{margin:0;font-size:12px;color:var(--muted)}
+.m-target{font-family:var(--display);font-size:38px;line-height:1;color:var(--lamp)}
+.m-choices{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.m-choices button{font-family:var(--display);font-size:20px;padding:8px 0}
+.m-alarm{animation:flash .6s steps(2) infinite}
+.m-alarm .m-target,.m-alarm p{color:var(--alert)}
+html.pip,html.pip body{height:100%;margin:0;padding:0}
+@media (prefers-reduced-motion: reduce){.m-alarm{animation:none;background:var(--alert-soft)}}
+/* very narrow window (Safari, or a squeezed Chrome window): keep only the essentials */
+@media (max-width:330px){
+  .wrap{gap:10px;padding-block:10px 16px}
+  .wrap>.mode,.wrap>.tips,.sub,#pipBtn,#pipNote{display:none}
+  .dial{padding:14px 10px}.big{font-size:44px}.stats{gap:4px 10px;font-size:12px}
+  #goal{font-size:20px}
+}
 #check{position:fixed;inset:0;z-index:20;background:var(--bg);display:flex;align-items:center;justify-content:center;
   padding:calc(24px + env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) calc(24px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
 #check.alarm{animation:flash .6s steps(2) infinite}
@@ -121,6 +150,8 @@ button.accent{border-color:var(--lamp);color:var(--lamp)}
   </section>
 
   <button class="primary" id="go">공부 시작</button>
+  <button class="secondary" id="pipBtn">작은 창으로 띄우기</button>
+  <p class="note" id="pipNote" hidden></p>
 
   <section class="mode">
     <div class="mode-head">
@@ -179,6 +210,20 @@ button.accent{border-color:var(--lamp);color:var(--lamp)}
   </ul>
 </div>
 
+<div id="mini" hidden>
+  <p class="m-goal" id="mGoal"></p>
+  <div id="mMain" style="display:contents">
+    <div class="m-row"><span class="m-time" id="mTime">00:00</span><span class="m-eye" id="mEye">대기 중</span></div>
+    <button class="m-btn" id="mGo">공부 시작</button>
+  </div>
+  <div class="m-check" id="mCheck" hidden>
+    <p id="mCkTitle">깨어 있나요?</p>
+    <div class="m-target" id="mTarget">00</div>
+    <div class="m-choices" id="mChoices"></div>
+  </div>
+  <div class="m-vid" id="mVid"></div>
+</div>
+
 <div id="calib" hidden role="dialog" aria-labelledby="clPose">
   <div class="cl-card" id="clPhase">
     <div class="cl-top"><span>정확도 높이기 · <b id="clStep">1 / 8</b></span><span class="cl-dots" id="clDots"></span></div>
@@ -203,7 +248,8 @@ button.accent{border-color:var(--lamp);color:var(--lamp)}
 </div>
 
 <script>
-const $=id=>document.getElementById(id);
+// elements may live in the floating window while it is open
+const $=id=>document.getElementById(id)||(window.__pipDoc?window.__pipDoc.getElementById(id):null);
 const store={get(k,d){try{const v=localStorage.getItem(k);return v==null?d:JSON.parse(v)}catch(e){return d}},
   set(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}};
 const today=new Date().toISOString().slice(0,10);
@@ -299,6 +345,8 @@ function showCheck(kind){
   const arr=[...opts].sort(()=>Math.random()-.5);
   $('target').textContent=n;$('choices').replaceChildren(...arr.map(v=>{const b=document.createElement('button');b.textContent=v;
     b.addEventListener('click',()=>pick(v,n,b));return b}));
+  $('mTarget').textContent=n;$('mChoices').replaceChildren(...arr.map(v=>{const b=document.createElement('button');b.textContent=v;
+    b.addEventListener('click',()=>pick(v,n,b));return b}));
   const g=$('goal').value.trim();$('ckGoal').hidden=!g;$('ckGoalText').textContent=g;
   $('check').hidden=false;
   if(kind==='eye'){ // eyes closed: alarm immediately
@@ -317,7 +365,20 @@ function pick(v,n,b){
   closedSince=0;schedule();
 }
 
+function syncMini(){
+  if(!pip)return;
+  const g=$('goal').value.trim();$('mGoal').textContent=g||'오늘의 목표 없음';
+  $('mTime').textContent=$('big').textContent;
+  $('mini').classList.toggle('m-run',running);
+  $('mEye').textContent=$('useCam').checked&&stream?$('eyeState').textContent:(running?($('useCheck').checked?'숫자 확인 켜짐':''):'대기 중');
+  $('mEye').classList.toggle('closed',$('eyeState').classList.contains('closed')&&!!stream);
+  $('mGo').textContent=running?'그만하기':'공부 시작';
+  const ck=!$('check').hidden,al=$('check').classList.contains('alarm');
+  $('mCheck').hidden=!ck;$('mMain').style.display=ck?'none':'contents';
+  $('mini').classList.toggle('m-alarm',ck&&al);$('mCkTitle').textContent=ck?$('ckTitle').textContent+' 숫자를 고르세요':'';
+}
 function loop(){
+  syncMini();
   if(!running)return;
   $('big').textContent=fmt(Date.now()-startedAt);
   if($('check').hidden&&$('useCheck').checked&&Date.now()>=nextAt)showCheck('random');
@@ -515,9 +576,9 @@ async function startCam(){
   if(saved&&saved.entries&&saved.entries.length){profile=saved;renderProfile();
     $('camHint').textContent='저장된 정밀 맞춤을 쓰고 있어요. 폰 위치가 바뀌었으면 다시 맞춰 주세요.';}
   else startCal(false);
-  camReady=true;camLoop=requestAnimationFrame(camFrame);return true;
+  camReady=true;camLoop=raf(camFrame);return true;
 }
-function stopCam(){camReady=false;cancelAnimationFrame(camLoop);if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}
+function stopCam(){camReady=false;if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}
   if(cal){cal=null;$('calib').hidden=true}
   $('camArea').hidden=true;closedSince=0}
 
@@ -573,13 +634,47 @@ function camFrame(){
       }
     }
   }
-  camLoop=requestAnimationFrame(camFrame);
+  camLoop=raf(camFrame);
 }
 
 function onModeChange(id){
   if(id==='useCam'){if($('useCam').checked){audio();startCam()}else{stopCam();camMsg('폰을 세워서 얼굴이 화면에 들어오게 두세요. 영상은 기기 밖으로 나가지 않아요.')}}
   if(id==='useCheck'&&running)schedule();
 }
+
+/* ---------- floating mini window (Document Picture-in-Picture, Chrome/Edge desktop) ----------
+   The floating window stays visible on top of other apps, so the ticker and camera loop run on its timers
+   (a hidden main window gets throttled), and the video element moves into it while it is open. */
+let pip=null,tickWin=window;
+function startTick(){try{tickWin.clearInterval(tick)}catch(e){}tickWin=pip||window;tick=tickWin.setInterval(loop,250)}
+function raf(cb){const w=pip||window;return w.requestAnimationFrame(cb)}
+const canPip='documentPictureInPicture' in window;
+if(!canPip){$('pipBtn').hidden=true;$('pipNote').hidden=false;
+  $('pipNote').textContent='작은 창 띄우기는 컴퓨터의 크롬이나 엣지에서 돼요. 다른 브라우저는 창을 좁히면 간단한 화면으로 바뀌어요.'}
+async function openPip(){
+  if(pip){pip.focus();return}
+  try{pip=await documentPictureInPicture.requestWindow({width:240,height:170})}
+  catch(e){pip=null;$('pipNote').hidden=false;$('pipNote').textContent='작은 창을 열지 못했어요. GitHub Pages 주소를 크롬에서 직접 열어 주세요.';return}
+  const doc=pip.document;window.__pipDoc=doc;doc.documentElement.className='pip';doc.title='졸음 깨우미';
+  document.querySelectorAll('style,link[rel="stylesheet"]').forEach(n=>doc.head.appendChild(n.cloneNode(true)));
+  const th=document.documentElement.getAttribute('data-theme');if(th)doc.documentElement.setAttribute('data-theme',th);
+  const mini=$('mini');mini.hidden=false;doc.body.appendChild(mini);
+  $('mVid').appendChild($('video'));$('video').play().catch(()=>{});
+  $('pipBtn').textContent='작은 창 닫기';
+  startTick();if(camReady)camLoop=raf(camFrame);syncMini();
+  pip.addEventListener('pagehide',closePipCleanup);
+}
+function closePipCleanup(){
+  const mini=$('mini')||pip&&pip.document.getElementById('mini');
+  const vid=pip&&pip.document.getElementById('video');
+  if(vid){$('camBox').appendChild(vid);vid.play().catch(()=>{})}
+  if(mini){mini.hidden=true;document.body.appendChild(mini)}
+  window.__pipDoc=null;pip=null;$('pipBtn').textContent='작은 창으로 띄우기';
+  startTick();if(camReady)camLoop=raf(camFrame);
+}
+$('pipBtn').addEventListener('click',()=>{audio();if(pip)pip.close();else openPip()});
+$('mGo').addEventListener('click',()=>$('go').click());
+startTick();
 
 /* ---------- start / stop ---------- */
 $('go').addEventListener('click',async()=>{
@@ -588,10 +683,10 @@ $('go').addEventListener('click',async()=>{
     audio();running=true;startedAt=Date.now();schedule();lockScreen();closedSince=0;
     $('dial').classList.add('running');$('state').textContent='공부 중 · 경과 시간';
     $('hint').textContent=$('useCam').checked?'눈 감김을 지켜보는 중이에요.':'다음 확인은 언제 올지 몰라요.';
-    $('go').textContent='그만하기';$('go').classList.add('stop');tick=setInterval(loop,250);loop();
+    $('go').textContent='그만하기';$('go').classList.add('stop');startTick();loop();
     if($('useCam').checked&&!stream)startCam();
   }else{
-    running=false;clearInterval(tick);stopAlarm();$('check').hidden=true;
+    running=false;stopAlarm();$('check').hidden=true;
     try{wakeLock&&wakeLock.release()}catch(e){}
     $('dial').classList.remove('running');$('state').textContent='대기 중';$('hint').textContent='수고했어요. 오늘 공부 시간 '+fmt(Date.now()-startedAt);
     $('go').textContent='공부 시작';$('go').classList.remove('stop');
