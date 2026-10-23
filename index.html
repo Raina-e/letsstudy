@@ -59,6 +59,27 @@ select{font:inherit;font-size:14px;padding:7px 10px;border-radius:10px;border:1p
 .cam-box.gone{position:absolute;width:2px;height:2px;opacity:0;pointer-events:none;border:0}
 .cam-box video{width:100%;height:100%;object-fit:cover;transform:scaleX(-1)}
 .cam-box.closed{border-color:var(--alert);box-shadow:0 0 0 2px var(--alert)}
+.cam-btns{display:flex;gap:6px;flex-wrap:wrap}
+.cam-btns button{padding:8px 12px;font-size:13px}
+button.accent{border-color:var(--lamp);color:var(--lamp)}
+.prof{align-self:flex-start;font-size:11.5px;letter-spacing:.04em;color:var(--lamp-ink);background:var(--lamp);border-radius:999px;padding:2px 9px}
+#calib{position:fixed;inset:0;z-index:25;background:var(--bg);display:flex;align-items:center;justify-content:center;
+  padding:calc(20px + env(safe-area-inset-top,0px)) max(16px,env(safe-area-inset-right,0px)) calc(20px + env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px))}
+.cl-card{max-width:400px;width:100%;display:flex;flex-direction:column;gap:14px;text-align:center}
+.cl-top{display:flex;justify-content:space-between;align-items:center;font-size:12.5px;color:var(--muted);letter-spacing:.06em}
+.cl-dots{display:flex;gap:5px}
+.cl-dots i{width:8px;height:8px;border-radius:50%;background:var(--line)}
+.cl-dots i.done{background:var(--muted)}
+.cl-dots i.now{background:var(--lamp)}
+.cl-cam{position:relative;width:min(60vw,220px);aspect-ratio:3/4;max-width:100%;margin:0 auto;border-radius:16px;overflow:hidden;background:var(--raise);border:1px solid var(--line)}
+.cl-cam canvas{width:100%;height:100%;object-fit:cover;display:block}
+.cl-face{position:absolute;inset:auto 0 0;background:rgba(0,0,0,.7);color:var(--alert);font-size:13px;padding:6px}
+.cl-pose{font-family:var(--display);font-size:34px;line-height:1.1;margin:0}
+.cl-do{margin:0;font-size:15px;min-height:3em;color:var(--fg)}
+#clPhase[data-kind="closed"] .cl-do{color:var(--lamp)}
+#clPhase[data-kind="prep"] .cl-do{color:var(--muted)}
+.cl-count{font-family:var(--display);font-size:56px;line-height:1;color:var(--lamp);font-variant-numeric:tabular-nums}
+.cl-btns{display:flex;gap:10px;justify-content:center}
 .cam-info{min-width:0;display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--muted)}
 .eye{font-family:var(--display);font-size:22px;color:var(--fg)}
 .eye.closed{color:var(--alert)}
@@ -110,8 +131,9 @@ select{font:inherit;font-size:14px;padding:7px 10px;border-radius:10px;border:1p
       <div class="cam-box" id="camBox"><video id="video" playsinline muted></video></div>
       <div class="cam-info">
         <div class="eye" id="eyeState">준비 중</div>
+        <span class="prof" id="profTag" hidden></span>
         <span id="camHint">맞추기를 시작해요.</span>
-        <button id="recal">다시 맞추기</button>
+        <div class="cam-btns"><button id="recal">다시 맞추기</button><button id="precise" class="accent">정확도 높이기</button></div>
       </div>
     </div>
     <p class="note" id="camNote">폰을 세워서 얼굴이 화면에 들어오게 두세요. 영상은 기기 밖으로 나가지 않아요.</p>
@@ -148,12 +170,25 @@ select{font:inherit;font-size:14px;padding:7px 10px;border-radius:10px;border:1p
 
   <ul class="tips">
     <li>눈 감김 감지는 켤 때 ① 화면 보기 ② 책 보는 자세 ③ 눈 감기 순서로 맞춰요. 자세나 조명이 바뀌면 '다시 맞추기'를 눌러 주세요.</li>
+    <li>'정확도 높이기'는 정면, 책 보기, 고개 돌리기·기울이기, 턱 괴기, 고개 숙이기까지 8가지 자세로 약 1분 동안 맞춰요. 결과는 이 폰에 저장돼요.</li>
     <li>이어폰에서만 소리 내기가 이어폰을 못 찾으면 '다시 확인'을 눌러 마이크를 허용해 주세요(녹음은 하지 않아요). 그래도 못 찾으면 '끼고 있어요'를 누르면 돼요. 이어폰 연결이 끊기면 자동으로 다시 꺼져요.</li>
     <li>이어폰에서만 소리 내기를 켜면, 이어폰이 확인되지 않을 때는 소리 없이 진동과 화면 깜빡임으로만 깨워요.</li>
     <li>화면을 켜 둔 채 이 페이지를 열어 두세요. 잠그거나 다른 앱으로 넘어가면 멈춰요.</li>
     <li>알람은 같은 숫자 버튼을 눌러야 꺼져요.</li>
     <li>안드로이드는 진동도 같이 와요. 아이폰은 브라우저 진동을 지원하지 않아요.</li>
   </ul>
+</div>
+
+<div id="calib" hidden role="dialog" aria-labelledby="clPose">
+  <div class="cl-card" id="clPhase">
+    <div class="cl-top"><span>정확도 높이기 · <b id="clStep">1 / 8</b></span><span class="cl-dots" id="clDots"></span></div>
+    <div class="cl-cam"><canvas id="clCam"></canvas><div class="cl-face" id="clFace" hidden>얼굴이 안 보여요</div></div>
+    <h2 class="cl-pose" id="clPose">정면</h2>
+    <p class="cl-do" id="clDo">화면을 똑바로 봐요</p>
+    <div class="cl-count" id="clCount" aria-live="off">3</div>
+    <p class="sub">자세마다 눈 뜨고 3초, 감고 3초씩 재요. 삐 소리 하나면 감고, 두 번이면 떠요.</p>
+    <div class="cl-btns"><button id="clSkip">이 자세 건너뛰기</button><button id="clCancel">그만하기</button></div>
+  </div>
 </div>
 
 <div id="check" hidden role="alertdialog" aria-labelledby="ckTitle">
@@ -295,10 +330,158 @@ function loop(){
 }
 
 /* ---------- eye-closure detection (MediaPipe Face Landmarker) ---------- */
-let landmarker=null,stream=null,camLoop=null,baseline=0,blinkBase=0,calib=[],calibStep=0,calibUntil=0,hist=[],openSince=0,closedSince=0,lastVideoTime=-1,camReady=false;
-const L=[33,160,158,133,153,144],R=[362,385,387,263,373,380];
+let landmarker=null,stream=null,camLoop=null,openSince=0,closedSince=0,lastVideoTime=-1,camReady=false,isClosed=false;
+// landmark sets: A = image-left eye (person's right), B = image-right eye (person's left)
+const EA=[33,160,158,133,153,144],EB=[362,385,387,263,373,380];
 const d=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
 const ear=(p,i)=>(d(p[i[1]],p[i[5]])+d(p[i[2]],p[i[4]]))/(2*d(p[i[0]],p[i[3]]));
+const median=a=>{const b=[...a].sort((x,y)=>x-y);return b[Math.floor(b.length/2)]};
+const clamp=x=>Math.max(0,Math.min(1,x));
+// sensitivity = where between closed (0) and open (1) the cut-off sits
+const SENS={low:.3,mid:.42,high:.55};
+
+/* One frame -> head pose + per-eye measurements.
+   yaw/pitch: nose offset from the eye midpoint, in units of eye distance, after undoing roll. roll: eye-line angle.
+   w: how much of each eye the camera sees (eye width / eye distance) - a turned-away eye gets little weight. */
+function measure(pts,res){
+  const bs={};((res.faceBlendshapes&&res.faceBlendshapes[0]&&res.faceBlendshapes[0].categories)||[]).forEach(c=>bs[c.categoryName]=c.score);
+  const hasB='eyeBlinkLeft' in bs;
+  const lo=pts[33],ro=pts[263],nose=pts[1];
+  const io=d(lo,ro)||1e-6,roll=Math.atan2(ro.y-lo.y,ro.x-lo.x);
+  const mx=(lo.x+ro.x)/2,my=(lo.y+ro.y)/2,dx=nose.x-mx,dy=nose.y-my;
+  const c=Math.cos(-roll),s=Math.sin(-roll);
+  const yaw=(dx*c-dy*s)/io,pitch=(dx*s+dy*c)/io;
+  return{pose:[yaw,pitch,roll],
+    A:{e:ear(pts,EA),b:hasB?bs.eyeBlinkRight:null,w:d(pts[33],pts[133])/io},
+    B:{e:ear(pts,EB),b:hasB?bs.eyeBlinkLeft:null,w:d(pts[362],pts[263])/io}};
+}
+const poseDist=(p,q)=>Math.hypot(p[0]-q[0],p[1]-q[1],(p[2]-q[2])*.8);
+
+/* ---------- calibration profile ----------
+   profile.entries: one per head pose, each holding that pose's open and closed reference for both eyes. */
+let profile=null,cal=null;
+const POSES={
+  front:{name:'정면',how:'화면을 똑바로 봐요'},
+  read:{name:'책 보기',how:'평소처럼 책을 내려다봐요'},
+  turnL:{name:'왼쪽으로 돌리기',how:'고개를 왼쪽으로 살짝 돌려요'},
+  turnR:{name:'오른쪽으로 돌리기',how:'고개를 오른쪽으로 살짝 돌려요'},
+  tiltL:{name:'왼쪽으로 기울이기',how:'귀를 왼쪽 어깨 쪽으로 기울여요'},
+  tiltR:{name:'오른쪽으로 기울이기',how:'귀를 오른쪽 어깨 쪽으로 기울여요'},
+  chin:{name:'턱 괴기',how:'한 손으로 턱을 괴고 책을 봐요'},
+  drop:{name:'고개 숙이기',how:'졸 때처럼 고개를 푹 숙여요'}
+};
+const PRECISE=['front','read','turnL','turnR','tiltL','tiltR','chin','drop'];
+
+function buildPhases(keys,{withClosed,prep}){
+  const ph=[];keys.forEach(k=>{
+    if(prep)ph.push({k,kind:'prep',ms:2500});
+    ph.push({k,kind:'open',ms:k==='read'&&!prep?4000:3000});
+    if(withClosed===true||(Array.isArray(withClosed)&&withClosed.includes(k)))ph.push({k,kind:'closed',ms:3000});
+  });return ph;
+}
+function beep(n){try{if(soundAllowed()){const c=audio();for(let i=0;i<n;i++){const o=c.createOscillator(),g=c.createGain(),t=c.currentTime+i*.22;
+  o.frequency.value=990;g.gain.setValueAtTime(.18,t);g.gain.exponentialRampToValueAtTime(.001,t+.18);o.connect(g).connect(master);o.start(t);o.stop(t+.2)}}}catch(e){}
+  if(navigator.vibrate)navigator.vibrate(n>1?[120,80,120]:150)}
+
+function startCal(precise){
+  const phases=precise?buildPhases(PRECISE,{withClosed:true,prep:true}):buildPhases(['front','read'],{withClosed:['read'],prep:false});
+  cal={precise,phases,i:0,until:performance.now()+phases[0].ms,data:{}};
+  closedSince=0;isClosed=false;showPhase();
+}
+function phaseText(p){
+  const P=POSES[p.k];
+  if(p.kind==='prep')return P.how+' (준비)';
+  if(p.kind==='open')return P.how+' · 눈 뜨고';
+  return '그 자세로 눈 감기 · 삐삐 소리 나면 떠요';
+}
+function showPhase(){
+  const p=cal.phases[cal.i];
+  if(!cal.precise){$('camHint').textContent=['','①','②','③'][cal.i+1]+' '+(p.kind==='closed'?'그 자세로 눈을 감고 3초 (삐 소리 나면 떠요)':POSES[p.k].how+' · 눈 뜨고 '+p.ms/1000+'초');}
+  else{
+    const poseIdx=PRECISE.indexOf(p.k);
+    $('clStep').textContent=(poseIdx+1)+' / '+PRECISE.length;
+    $('clPose').textContent=POSES[p.k].name;
+    $('clDo').textContent=phaseText(p);
+    $('clPhase').dataset.kind=p.kind;
+    $('clDots').replaceChildren(...PRECISE.map((k,j)=>{const s=document.createElement('i');if(j<poseIdx)s.className='done';if(j===poseIdx)s.className='now';return s}));
+  }
+  if(p.kind==='closed')beep(1);
+}
+function calTick(now,m){
+  const p=cal.phases[cal.i];
+  if(m&&p.kind!=='prep'){
+    const b=cal.data[p.k]||(cal.data[p.k]={open:[],closed:[]});
+    b[p.kind].push({t:now,...m});
+  }
+  if(cal.precise)$('clCount').textContent=Math.max(0,Math.ceil((cal.until-now)/1000));
+  if(now<cal.until)return;
+  if(p.kind==='closed')beep(2);
+  cal.i++;
+  if(cal.i>=cal.phases.length){finishCal();return}
+  cal.until=now+cal.phases[cal.i].ms;showPhase();
+}
+function skipPose(){ // jump past every phase of the current pose
+  const k=cal.phases[cal.i].k;delete cal.data[k];
+  while(cal.i<cal.phases.length&&cal.phases[cal.i].k===k)cal.i++;
+  if(cal.i>=cal.phases.length){finishCal();return}
+  cal.until=performance.now()+cal.phases[cal.i].ms;showPhase();
+}
+function eyeRef(O,C,eye){
+  const oe=median(O.map(f=>f[eye].e)),ce=C?median(C.map(f=>f[eye].e)):null;
+  const ob=O[0][eye].b==null?null:median(O.map(f=>f[eye].b)),cb=C&&ob!=null?median(C.map(f=>f[eye].b)):null;
+  const eOk=ce!=null&&oe-ce>oe*.12, bOk=cb!=null&&cb-ob>.15;
+  return{oE:oe,cE:ce,oB:ob,cB:cb,eOk,bOk,w:median(O.map(f=>f[eye].w))};
+}
+function finishCal(){
+  const entries=[],skipped=[];
+  for(const k of Object.keys(POSES)){
+    const b=cal.data[k];if(!b)continue;
+    if(b.open.length<5){skipped.push(POSES[k].name);continue}
+    let C=b.closed.length>=5?b.closed.slice(Math.floor(b.closed.length*.3)):null; // skip the moment of closing
+    entries.push({k,pose:[0,1,2].map(i=>median(b.open.map(f=>f.pose[i]))),O:b.open,C});
+  }
+  // a pose recorded without closed eyes borrows the closed frames of its nearest pose
+  entries.forEach(en=>{if(!en.C){const src=entries.filter(x=>x.C).sort((x,y)=>poseDist(x.pose,en.pose)-poseDist(y.pose,en.pose))[0];if(src)en.C=src.C}});
+  const out=entries.filter(en=>en.C).map(en=>({k:en.k,pose:en.pose,A:eyeRef(en.O,en.C,'A'),B:eyeRef(en.O,en.C,'B')}))
+    .filter(en=>en.A.eOk||en.A.bOk||en.B.eOk||en.B.bOk);
+  const precise=cal.precise;cal=null;$('calib').hidden=true;
+  if(!out.length){profile=null;$('camHint').textContent='눈 뜬 것과 감은 것이 잘 구분되지 않아요. 폰을 조금 더 높이 세우고 다시 맞춰 주세요.';renderProfile();return}
+  profile={entries:out,precise,at:Date.now()};
+  if(precise)store.set('jolum_profile',profile);else store.set('jolum_profile',null);
+  $('camHint').textContent=(precise?'정밀 맞춤 완료 · '+out.length+'가지 자세':'준비됐어요. 공부를 시작하면 감시해요.')+(skipped.length?' ('+skipped.join(', ')+'는 얼굴이 안 보여 뺐어요)':'');
+  renderProfile();
+}
+function renderProfile(){
+  $('profTag').hidden=!(profile&&profile.precise);
+  if(profile&&profile.precise)$('profTag').textContent='정밀 맞춤 '+profile.entries.length+'가지 자세';
+}
+
+/* openness of one eye against one pose's references: 0 = that pose's closed eye, 1 = its open eye */
+function eyeOpen(ref,m){
+  const v=[];
+  if(ref.eOk)v.push(clamp((m.e-ref.cE)/(ref.oE-ref.cE)));
+  if(ref.bOk&&m.b!=null)v.push(clamp((ref.cB-m.b)/(ref.cB-ref.oB)));
+  return v.length?v.reduce((a,b)=>a+b)/v.length:null;
+}
+/* Blend the two nearest calibrated poses, and within each pose weight the eyes by how visible they are right now. */
+function openness(m){
+  const ranked=profile.entries.map(en=>({en,dist:poseDist(en.pose,m.pose)})).sort((a,b)=>a.dist-b.dist).slice(0,2);
+  let sum=0,wsum=0;
+  for(const {en,dist} of ranked){
+    const wp=1/Math.pow(dist+.05,2);
+    let es=0,ew=0;
+    for(const eye of ['A','B']){const o=eyeOpen(en[eye],m[eye]);if(o==null)continue;
+      const vis=Math.pow(clamp(m[eye].w/(en[eye].w||m[eye].w)),2)+.05;es+=o*vis;ew+=vis}
+    if(ew){sum+=es/ew*wp;wsum+=wp}
+  }
+  return wsum?{open:sum/wsum,far:ranked[0].dist>.45}:null;
+}
+
+// short per-eye history to smooth out single-frame jitter
+let hist=[];
+function smooth(m){hist.push(m);if(hist.length>5)hist.shift();
+  const sm=k=>({e:median(hist.map(h=>h[k].e)),b:m[k].b==null?null:median(hist.map(h=>h[k].b)),w:m[k].w});
+  return{pose:m.pose,A:sm('A'),B:sm('B')}}
 
 function camMsg(t,warn){$('camNote').textContent=t;$('camNote').classList.toggle('warn',!!warn)}
 
@@ -328,84 +511,64 @@ async function startCam(){
     }
   }
   camMsg('폰을 세워서 얼굴이 화면에 들어오게 두세요. 영상은 기기 밖으로 나가지 않아요.');
-  calibrate();camReady=true;camLoop=requestAnimationFrame(camFrame);return true;
+  const saved=store.get('jolum_profile',null);
+  if(saved&&saved.entries&&saved.entries.length){profile=saved;renderProfile();
+    $('camHint').textContent='저장된 정밀 맞춤을 쓰고 있어요. 폰 위치가 바뀌었으면 다시 맞춰 주세요.';}
+  else startCal(false);
+  camReady=true;camLoop=requestAnimationFrame(camFrame);return true;
 }
 function stopCam(){camReady=false;cancelAnimationFrame(camLoop);if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}
+  if(cal){cal=null;$('calib').hidden=true}
   $('camArea').hidden=true;closedSince=0}
-/* Two-step calibration: front view, then the real reading posture.
-   Looking down at a book narrows the eyelid gap, so the open-eye reference comes from the reading posture. */
-/* Three-step calibration: ① look at the screen, ② reading posture, ③ eyes closed.
-   The closed reference makes the threshold sit between *your* open and closed eyes instead of a fixed ratio. */
-let openRef=null,closedRef=null;
-const STEPS={1:{ms:3000,hint:'① 화면을 보고 눈을 뜬 채로 3초'},2:{ms:4000,hint:'② 책을 보는 자세로 4초 (평소처럼 읽어요)'},3:{ms:3000,hint:'③ 그 자세로 눈을 감고 3초 (삐 소리 나면 떠요)'}};
-function beepCue(){try{if(soundAllowed()){const c=audio(),o=c.createOscillator(),g=c.createGain();o.frequency.value=990;
-  g.gain.setValueAtTime(.18,c.currentTime);g.gain.exponentialRampToValueAtTime(.001,c.currentTime+.25);o.connect(g).connect(master);o.start();o.stop(c.currentTime+.3)}}catch(e){}
-  if(navigator.vibrate)navigator.vibrate(150)}
-function calibrate(){baseline=0;openRef=null;closedRef=null;calib=[];calib.front=[];calib.read=[];calibStep=1;calibUntil=performance.now()+STEPS[1].ms;closedSince=0;hist=[];
-  $('camHint').textContent=STEPS[1].hint;}
-// sensitivity = where between closed (0) and open (1) the cut-off sits
-const SENS={low:.3,mid:.42,high:.55};
-const median=a=>{const b=[...a].sort((x,y)=>x-y);return b[Math.floor(b.length/2)]};
-$('recal').addEventListener('click',calibrate);
+
+$('recal').addEventListener('click',()=>{audio();startCal(false)});
+$('precise').addEventListener('click',async()=>{audio();
+  if(!stream){$('useCam').checked=true;store.set('jolum_useCam',true);if(!await startCam())return}
+  $('calib').hidden=false;startCal(true)});
+$('clSkip').addEventListener('click',()=>{if(cal)skipPose()});
+$('clCancel').addEventListener('click',()=>{if(!cal)return;cal=null;$('calib').hidden=true;
+  if(!profile)startCal(false);else $('camHint').textContent='정밀 맞춤을 그만뒀어요. 이전 맞춤을 그대로 써요.'});
 function applyPreview(){$('camBox').classList.toggle('gone',!$('showPreview').checked)}
 $('showPreview').addEventListener('change',()=>{store.set('jolum_preview',$('showPreview').checked);applyPreview()});
 if(store.get('jolum_preview',true)===false)$('showPreview').checked=false;applyPreview();
+
+function drawCalPreview(v){
+  const cv=$('clCam'),c=cv.getContext('2d');if(!v.videoWidth)return;
+  if(cv.width!==v.videoWidth){cv.width=v.videoWidth;cv.height=v.videoHeight}
+  c.save();c.translate(cv.width,0);c.scale(-1,1);c.drawImage(v,0,0);c.restore();
+}
 
 function camFrame(){
   if(!camReady)return;
   const v=$('video');
   if(v.readyState>=2&&v.currentTime!==lastVideoTime){
     lastVideoTime=v.currentTime;
-    const res=landmarker.detectForVideo(v,performance.now());
+    const now=performance.now();
+    const res=landmarker.detectForVideo(v,now);
     const pts=res.faceLandmarks&&res.faceLandmarks[0];
-    if(!pts){
+    const m=pts?measure(pts,res):null;
+    if(cal){
+      if(cal.precise){drawCalPreview(v);$('clFace').hidden=!!m}
+      calTick(now,m);
+      $('eyeState').textContent=m?'맞추는 중':'얼굴이 안 보여요';
+    }else if(!m){
       $('eyeState').textContent='얼굴이 안 보여요';$('eyeState').classList.remove('closed');$('camBox').classList.remove('closed');
-      // a face dropping out of frame (head down on the desk) counts like closed eyes while studying
       // head down on the desk: face leaves the frame. Give a long grace period so a deep look at the book does not trigger it.
-      if(running&&baseline&&$('check').hidden){if(!closedSince)closedSince=performance.now();
-        if(performance.now()-closedSince>Math.max(8,Number($('closeSec').value)+5)*1000)showCheck('eye')}
-    }else{
-      const bs={};((res.faceBlendshapes&&res.faceBlendshapes[0]&&res.faceBlendshapes[0].categories)||[]).forEach(c=>bs[c.categoryName]=c.score);
-      const blink=((bs.eyeBlinkLeft||0)+(bs.eyeBlinkRight||0))/2;
-      const raw=(ear(pts,L)+ear(pts,R))/2;
-      hist.push(raw);if(hist.length>6)hist.shift();const e=median(hist); // smooth out single-frame jitter
-      const now=performance.now();
-      const hasBlink=!!(res.faceBlendshapes&&res.faceBlendshapes[0]&&res.faceBlendshapes[0].categories&&res.faceBlendshapes[0].categories.length);
-      if(calibStep){
-        calib.push({e:raw,b:blink});
-        $('eyeState').textContent='맞추는 중 '+['','①','②','③'][calibStep];
-        if(now>=calibUntil){
-          if(calibStep===1){calib.front=calib.splice(0)}
-          else if(calibStep===2){calib.read=calib.splice(0)}
-          else{
-            const all=calib.splice(0),cl=all.slice(Math.floor(all.length*.3)); // skip the moment of closing
-            const op=calib.read.length?calib.read:calib.front;
-            const oe=median(op.map(x=>x.e)),ob=median(op.map(x=>x.b));
-            const ce=cl.length?median(cl.map(x=>x.e)):oe*.4,cb=cl.length?median(cl.map(x=>x.b)):1;
-            openRef={e:oe,b:ob};closedRef={e:Math.min(ce,oe*.85),b:Math.max(cb,ob+.05)};baseline=oe;
-            calibStep=0;beepCue();
-            $('camHint').textContent=(oe-ce)<oe*.12?'눈 뜬 것과 감은 것이 잘 구분되지 않아요. 폰을 조금 더 높이 세우고 다시 맞춰 주세요.':'준비됐어요. 공부를 시작하면 감시해요.';
-          }
-          if(calibStep){calibStep++;calibUntil=now+STEPS[calibStep].ms;$('camHint').textContent=STEPS[calibStep].hint;if(calibStep===3)beepCue()}
-        }
-      }
-      if(baseline&&!calibStep){
+      if(running&&profile&&$('check').hidden){if(!closedSince)closedSince=now;
+        if(now-closedSince>Math.max(8,Number($('closeSec').value)+5)*1000)showCheck('eye')}
+    }else if(profile){
+      const r=openness(smooth(m));
+      if(r){
         const cut=SENS[$('sens').value]??SENS.mid;
-        // openness 0 = your closed eyes, 1 = your open reading eyes; eyelid gap and blink score each give one estimate
-        const clamp=x=>Math.max(0,Math.min(1,x));
-        const oE=clamp((e-closedRef.e)/((openRef.e-closedRef.e)||1e-6));
-        const blinkSpan=closedRef.b-openRef.b;
-        const oB=hasBlink&&blinkSpan>.15?clamp((closedRef.b-blink)/blinkSpan):null;
-        const open=oB==null?oE:(oE+oB)/2;
-        const closed=open<cut;
-        $('eyeState').classList.toggle('closed',closed);$('camBox').classList.toggle('closed',closed);
-        if(closed){openSince=0;if(!closedSince)closedSince=now;
+        isClosed=isClosed?r.open<cut+.08:r.open<cut; // a little hysteresis so the state doesn't flicker at the edge
+        $('eyeState').classList.toggle('closed',isClosed);$('camBox').classList.toggle('closed',isClosed);
+        if(isClosed){openSince=0;if(!closedSince)closedSince=now;
           const secs=(now-closedSince)/1000;$('eyeState').textContent='감음 '+secs.toFixed(1)+'초';
           if(running&&$('check').hidden&&secs>=Number($('closeSec').value))showCheck('eye');
         }else{
           // require eyes open for a moment before resetting, so a half-second flicker doesn't restart the count
           if(!openSince)openSince=now;if(now-openSince>400)closedSince=0;
-          $('eyeState').textContent='눈 뜸';
+          $('eyeState').textContent=r.far?'눈 뜸 · 맞춘 적 없는 자세':'눈 뜸';
         }
       }
     }
