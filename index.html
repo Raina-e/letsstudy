@@ -16,7 +16,14 @@ html,body{height:100%}
 body{background:var(--bg);color:var(--fg);font-family:var(--body);font-size:15px;line-height:1.55;
   padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
 .wrap{max-width:440px;margin:0 auto;padding-block:22px 36px;display:flex;flex-direction:column;gap:16px}
-h1{font-family:var(--display);font-weight:400;font-size:27px;margin:0;color:var(--lamp)}
+.goal-label{display:block;font-size:12px;letter-spacing:.1em;color:var(--muted);margin-bottom:4px}
+#goal{width:100%;font-family:var(--display);font-weight:400;font-size:27px;line-height:1.25;color:var(--lamp);background:transparent;
+  border:0;border-bottom:1px dashed var(--line);border-radius:0;padding:2px 0 6px;outline:none}
+#goal::placeholder{color:var(--muted);opacity:.7}
+#goal:focus{border-bottom-color:var(--lamp)}
+.ck-goal{font-size:14px;color:var(--muted);margin:0}
+.ck-goal b{color:var(--lamp);font-weight:600}
+.btns{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
 .sub{color:var(--muted);margin:2px 0 0;font-size:13.5px}
 .dial{position:relative;background:radial-gradient(120% 90% at 50% 0%,var(--lamp-glow),transparent 70%),var(--panel);
   border:1px solid var(--line);border-radius:20px;padding:28px 20px 22px;display:flex;flex-direction:column;align-items:center;gap:6px;text-align:center}
@@ -79,7 +86,8 @@ select{font:inherit;font-size:14px;padding:7px 10px;border-radius:10px;border:1p
 
 <div class="wrap">
   <header>
-    <h1>독서실 졸음 깨우미</h1>
+    <label class="goal-label" for="goal">오늘의 목표</label>
+    <input id="goal" type="text" maxlength="40" autocomplete="off" placeholder="예: 수학 기출 3회분 풀기">
     <p class="sub">눈이 감기거나 확인에 응답이 없으면 알람이 울려요.</p>
   </header>
 
@@ -137,14 +145,14 @@ select{font:inherit;font-size:14px;padding:7px 10px;border-radius:10px;border:1p
       <input type="range" id="vol" min="5" max="100" step="5" value="70"></div>
     <div class="row"><label for="earOnly">이어폰에서만 소리 내기<small id="earStatus">꺼져 있어요</small></label>
       <label class="switch"><input type="checkbox" id="earOnly"><span></span></label></div>
-    <div class="row" id="earRow" hidden><label for="earCheck">이어폰 다시 확인<small id="earDevices">이어폰을 연결한 뒤 눌러 주세요</small></label>
-      <button id="earCheck">확인</button></div>
+    <div class="row" id="earRow" hidden><label for="earCheck">이어폰 확인<small id="earDevices">이어폰을 연결한 뒤 눌러 주세요</small></label>
+      <div class="btns"><button id="earCheck">다시 확인</button><button id="earManual">끼고 있어요</button></div></div>
     <div class="row"><label for="testBtn">소리 미리 듣기<small>볼륨 맞추기</small></label><button id="testBtn">테스트</button></div>
   </section>
 
   <ul class="tips">
     <li>눈 감김 감지는 켤 때 ① 화면 보기 ② 책 보는 자세 순서로 맞춰요. 자세나 조명이 바뀌면 '다시 맞추기'를 눌러 주세요.</li>
-    <li>이어폰에서만 소리 내기가 이어폰을 못 찾으면 '이어폰 다시 확인'을 눌러 마이크를 허용해 주세요. 녹음은 하지 않고 기기 이름만 확인한 뒤 바로 꺼요.</li>
+    <li>이어폰에서만 소리 내기가 이어폰을 못 찾으면 '다시 확인'을 눌러 마이크를 허용해 주세요(녹음은 하지 않아요). 그래도 못 찾으면 '끼고 있어요'를 누르면 돼요. 이어폰 연결이 끊기면 자동으로 다시 꺼져요.</li>
     <li>이어폰에서만 소리 내기를 켜면, 이어폰이 확인되지 않을 때는 소리 없이 진동과 화면 깜빡임으로만 깨워요.</li>
     <li>화면을 켜 둔 채 이 페이지를 열어 두세요. 잠그거나 다른 앱으로 넘어가면 멈춰요.</li>
     <li>알람은 같은 숫자 버튼을 눌러야 꺼져요.</li>
@@ -155,6 +163,7 @@ select{font:inherit;font-size:14px;padding:7px 10px;border-radius:10px;border:1p
 <div id="check" hidden role="alertdialog" aria-labelledby="ckTitle">
   <div class="card">
     <h2 id="ckTitle">깨어 있나요?</h2>
+    <p class="ck-goal" id="ckGoal" hidden>목표 <b id="ckGoalText"></b></p>
     <div class="target" id="target">00</div>
     <p class="sub" id="ckHint">위 숫자와 같은 버튼을 누르세요</p>
     <div class="choices" id="choices"></div>
@@ -178,10 +187,16 @@ let running=false,nextAt=0,tick=null,deadline=0,startedAt=0,ctx=null,alarmNode=n
 
 function renderStats(){$('sOk').textContent=stats.ok;$('sEye').textContent=stats.eye;$('sMiss').textContent=stats.miss;store.set('jolumStats2',stats)}
 renderStats();
+{const g=store.get('jolum_goal','');if(g)$('goal').value=g}
+$('goal').addEventListener('input',()=>store.set('jolum_goal',$('goal').value));
+$('goal').addEventListener('keydown',e=>{if(e.key==='Enter')$('goal').blur()});
 
 /* ---------- sound ---------- */
-let master=null,earConnected=false,earKnown=false;
-function audio(){if(!ctx){ctx=new (window.AudioContext||window.webkitAudioContext)();master=ctx.createGain();master.connect(ctx.destination);applyVol()}
+let master=null,earConnected=false,earKnown=false,earManual=false,lastDevCount=-1;
+// iPhone: without this, the ring/silent switch mutes web audio and a recent mic use can route it to the call speaker
+function setPlayback(){try{if(navigator.audioSession)navigator.audioSession.type='playback'}catch(e){}}
+setPlayback();
+function audio(){setPlayback();if(!ctx){ctx=new (window.AudioContext||window.webkitAudioContext)();master=ctx.createGain();master.connect(ctx.destination);applyVol()}
   if(ctx.state==='suspended')ctx.resume();return ctx}
 function applyVol(){const v=Number($('vol').value);$('volVal').textContent=v+'%';if(master)master.gain.value=Math.pow(v/100,1.5)*2}
 $('vol').addEventListener('input',()=>{applyVol();store.set('jolum_vol',$('vol').value)});
@@ -192,6 +207,8 @@ async function checkEar(){
     const outs=list.filter(d=>d.kind==='audiooutput'||d.kind==='audioinput');
     earKnown=outs.some(d=>d.label);earConnected=outs.some(d=>EAR_RE.test(d.label));
     earNames=[...new Set(outs.map(d=>d.label).filter(Boolean))];
+    // a device disappeared (earphones unplugged / disconnected): drop the manual confirmation
+    if(lastDevCount>=0&&outs.length<lastDevCount)earManual=false;lastDevCount=outs.length;
   }catch(e){earKnown=false;earConnected=false}
   renderEar();
 }
@@ -200,16 +217,22 @@ function renderEar(){
   $('earRow').hidden=!$('earOnly').checked;
   if(earNames.length)$('earDevices').textContent='찾은 기기: '+earNames.join(', ');
   if(!$('earOnly').checked){$('earStatus').textContent='꺼져 있어요';return}
-  $('earStatus').textContent=earConnected?'이어폰 연결됨 · 소리 켜짐':earKnown?'이어폰 없음 · 진동과 화면만':'이어폰 확인 안 됨 · 진동과 화면만';
+  $('earManual').hidden=earConnected;
+  $('earManual').textContent=earManual?'끼고 있어요 ✓':'끼고 있어요';
+  $('earStatus').textContent=earConnected?'이어폰 연결됨 · 소리 켜짐':earManual?'직접 확인함 · 소리 켜짐':earKnown?'이어폰을 못 찾음 · 진동과 화면만':'이어폰 확인 안 됨 · 진동과 화면만';
 }
 // iPhone shows audio device names only after microphone permission, so ask once and release the mic right away
 $('earCheck').addEventListener('click',async()=>{
   $('earDevices').textContent='확인 중…';
-  try{const st=await navigator.mediaDevices.getUserMedia({audio:true});st.getTracks().forEach(t=>t.stop())}
+  try{const st=await navigator.mediaDevices.getUserMedia({audio:true});st.getTracks().forEach(t=>t.stop());setPlayback()}
   catch(e){await checkEar();$('earDevices').textContent='마이크를 허용해야 이어폰 이름을 볼 수 있어요';return}
-  await checkEar();if(!earNames.length)$('earDevices').textContent='브라우저가 기기 이름을 알려 주지 않았어요';
+  await checkEar();
+  if(!earNames.length)$('earDevices').textContent='브라우저가 기기 이름을 알려 주지 않았어요. 이어폰을 꼈다면 \'끼고 있어요\'를 눌러 주세요';
+  else if(!earConnected)$('earDevices').textContent='찾은 기기: '+earNames.join(', ')+' · 이어폰이 목록에 없으면 \'끼고 있어요\'를 눌러 주세요';
 });
-function soundAllowed(){return !$('earOnly').checked||earConnected}
+// iPhone often lists only its built-in mic, so let the person confirm by hand; it resets when a device disconnects
+$('earManual').addEventListener('click',()=>{earManual=!earManual;renderEar();if(earManual){audio();chime()}});
+function soundAllowed(){return !$('earOnly').checked||earConnected||earManual}
 if(navigator.mediaDevices&&navigator.mediaDevices.addEventListener)navigator.mediaDevices.addEventListener('devicechange',async()=>{await checkEar();if(alarmNode&&!soundAllowed())silence()});
 $('earOnly').addEventListener('change',()=>{store.set('jolum_earOnly',$('earOnly').checked);checkEar();if(alarmNode&&!soundAllowed())silence()});
 if(store.get('jolum_earOnly',false))$('earOnly').checked=true;
@@ -245,6 +268,7 @@ function showCheck(kind){
   const arr=[...opts].sort(()=>Math.random()-.5);
   $('target').textContent=n;$('choices').replaceChildren(...arr.map(v=>{const b=document.createElement('button');b.textContent=v;
     b.addEventListener('click',()=>pick(v,n,b));return b}));
+  const g=$('goal').value.trim();$('ckGoal').hidden=!g;$('ckGoalText').textContent=g;
   $('check').hidden=false;
   if(kind==='eye'){ // eyes closed: alarm immediately
     $('check').classList.add('alarm');$('ckTitle').textContent='눈 떠요!';$('ckHint').textContent='숫자를 맞춰야 알람이 꺼져요';
